@@ -8,17 +8,18 @@ import android.database.sqlite.SQLiteOpenHelper;
 import java.util.ArrayList;
 import java.util.HashMap;
 
-class DBhelper extends SQLiteOpenHelper {
+public class DBhelper extends SQLiteOpenHelper {
 
     // set fields of database schema
-    private static final String DATABASE_NAME = "myDatabase.db";
+    private static final String DATABASE_NAME = "myDB";
     private static final int DATABASE_VERSION = 1;
     private static final String TABLE_NAME = "contacts";
 
     private String todo_id = "toDo";
+    private String todo_check = "completed";
 
     // constructor
-    DBhelper(Context context) {
+    public DBhelper(Context context) {
         super(context, DATABASE_NAME, null, DATABASE_VERSION);
     }
 
@@ -27,7 +28,8 @@ class DBhelper extends SQLiteOpenHelper {
     public void onCreate(SQLiteDatabase sqLiteDatabase) {
         String CREATE_TABLE = "CREATE TABLE " + TABLE_NAME +
                 " ( _id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                todo_id + " TEXT)";
+                todo_id + " TEXT, " +
+                todo_check + " TEXT)";
         sqLiteDatabase.execSQL(CREATE_TABLE);
     }
 
@@ -42,40 +44,44 @@ class DBhelper extends SQLiteOpenHelper {
     // CRUD methods (create, read, update, delete)
 
     // create
-    void create(String doable) {
+    void create(ToDoListItem toDoListItem) {
         SQLiteDatabase db = getWritableDatabase();
-        ContentValues values= new ContentValues();
-        values.put(todo_id, doable);
+        ContentValues values = new ContentValues();
+        values.put(todo_id, toDoListItem.item);
+        values.put(todo_check, toDoListItem.completed);
         db.insert(TABLE_NAME, null, values);
         db.close();
     }
 
     // read
-    ArrayList<HashMap<String, String>> read() {
+    ArrayList<ToDoListItem> read() {
         SQLiteDatabase db = getReadableDatabase();
-        String query = "SELECT _id , " + todo_id + " FROM " + TABLE_NAME;
+        String query = "SELECT _id , " + todo_id + " , " + todo_check + " FROM " + TABLE_NAME;
 
-        ArrayList<HashMap<String, String>> phonebook = new ArrayList<>();
+        ArrayList<ToDoListItem> toDoListItems = new ArrayList<>();
         Cursor cursor = db.rawQuery(query, null);
+        ToDoListItem toDoListItem;
         if (cursor.moveToFirst()) {
             do {
-                HashMap<String, String> persondata = new HashMap<>();
-                persondata.put("id", cursor.getString(cursor.getColumnIndex("_id")));
-                persondata.put("toDo", cursor.getString(cursor.getColumnIndex(todo_id)));
-                phonebook.add(persondata);
+                String toDo = cursor.getString(cursor.getColumnIndex(todo_id));
+                int id = cursor.getInt(cursor.getColumnIndex("_id"));
+                Boolean checkedItem = cursor.getInt(cursor.getColumnIndex(todo_check)) > 0;
+                toDoListItem = new ToDoListItem(toDo, checkedItem, id);
+                toDoListItems.add(toDoListItem);
             }
             while (cursor.moveToNext());
         }
         cursor.close();
         db.close();
-        return phonebook;
+        return toDoListItems;
     }
 
     // update
-    void update(int id, String doable) {
+    void update(int id, ToDoListItem toDoListItem) {
         SQLiteDatabase db = getWritableDatabase();
         ContentValues values = new ContentValues();
-        values.put(todo_id, doable);
+        values.put(todo_id, toDoListItem.item);
+        values.put(todo_check, toDoListItem.completed);
         db.update(TABLE_NAME, values, "_id = ? ", new String[] {
                 String.valueOf(id)
         });

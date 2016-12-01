@@ -37,7 +37,9 @@
         android:layout_alignParentStart="true"
         android:layout_marginTop="0dp"
         android:layout_marginBottom="100dp"
-        android:id="@+id/toDoListView" />
+        android:id="@+id/toDoListView"
+        android:focusable="true"
+        android:descendantFocusability="beforeDescendants"/>
 
     <LinearLayout
         android:layout_width="wrap_content"
@@ -60,17 +62,8 @@
         android:layout_marginLeft="25dp"
         android:layout_marginStart="25dp"
         android:id="@+id/saveButton"
-        android:onClick="saveDoable"
+        android:onClick="saveItem"
         style="@style/buttonStyle" />
     </LinearLayout>
-
-    <View
-        android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@color/colorAccent"
-        android:id="@+id/pinkView2"
-        android:layout_above="@id/linear"
-        android:layout_marginBottom="51dp"/>
-
 
 </RelativeLayout>

@@ -1,25 +1,24 @@
 package com.example.nils.todolist;
 
+import android.app.Service;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
-import android.view.Gravity;
 import android.view.View;
+import android.view.inputmethod.InputMethodManager;
 import android.widget.AdapterView;
-import android.widget.ArrayAdapter;
 import android.widget.EditText;
 import android.widget.ListView;
 import android.widget.Toast;
 import java.util.ArrayList;
-import java.util.HashMap;
 
 public class MainActivity extends AppCompatActivity {
 
-    private ArrayList<String> toDoList;
-    private ArrayAdapter<String> currentToDoList;
+    private ArrayList<ToDoListItem> toDoListItems;
+    private MyAdapter toDoListAdapter;
+    private ListView toDoListView;
     private String currentUserInput;
     private EditText userInputET;
     private DBhelper dBhelper;
-    private boolean changingItem;
     private int changingItemID;
 
     @Override
@@ -27,22 +26,14 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         initializeParams();
-
-        // restore savedInstanceState
-        if (savedInstanceState != null) {
-            currentUserInput = savedInstanceState.getString("currentUserInput");
-            toDoList = savedInstanceState.getStringArrayList("toDoList");
-            userInputET.setText(currentUserInput);
-        }
-
-        showToDoList(); // update UI
+        initializeAdapter();
+        updateAdapter(); // update UI
     }
 
     public void initializeParams() {
-        toDoList = new ArrayList<>();
+        toDoListItems = new ArrayList<>();
         userInputET = (EditText) findViewById(R.id.inputEditText);
         dBhelper = new DBhelper(this);
-        changingItem = false;
     }
 
     @Override
@@ -50,38 +41,23 @@ public class MainActivity extends AppCompatActivity {
     public void onSaveInstanceState(Bundle outState) {
         currentUserInput = userInputET.getText().toString();
         outState.putString("currentUserInput", currentUserInput);
-        outState.putStringArrayList("toDoList", toDoList);
         super.onSaveInstanceState(outState);
     }
 
-    public void showToDoList() {
-        changingItem = false; // user is not changing an item (yet)
-        toDoList.clear(); // clear previous ArrayList to make room for new database
-
-        // make ArrayList and loop through to get String values (not the ids)
-        final ArrayList<HashMap<String, String>> list = dBhelper.read();
-        for (int i = 0; i < list.size(); i++) {
-            HashMap item = list.get(i);
-            String toDo = item.get("toDo").toString();
-            toDoList.add(toDo); // add to ArrayList used for ArrayAdapter
-        }
-
-        final ListView toDoListView = (ListView) findViewById(R.id.toDoListView);
-        currentToDoList = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, toDoList);
-        toDoListView.setAdapter(currentToDoList);
-        runOnUiThread(new Runnable() {
-            public void run() {
-                currentToDoList.notifyDataSetChanged();
-            }
-        });
+    public void initializeAdapter() {
+        toDoListView = (ListView) findViewById(R.id.toDoListView);
+        toDoListAdapter = new MyAdapter(this, toDoListItems);
+        toDoListView.setAdapter(toDoListAdapter);
 
         // on short click
         toDoListView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
-                getID(list, i);
-                String toDoListItem = toDoListView.getItemAtPosition(i).toString();
-                changeItem(toDoListItem);
+                getID(i);
+                ToDoListItem toDoListItem = (ToDoListItem) toDoListView.getItemAtPosition(i);
+                toDoListItem.changeState();
+                dBhelper.update(changingItemID, toDoListItem);
+                updateAdapter(); // update UI
             }
         });
 
@@ -91,61 +67,77 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public boolean onItemLongClick(AdapterView<?> arg0, View arg1,
                                            int pos, long id) {
-                getID(list, pos);
-                deleteItem(changingItemID);
+                ToDoListItem toDoListItem = (ToDoListItem) toDoListView.getItemAtPosition(pos);
+                int item_id = toDoListItem.id;
+                dBhelper.delete(item_id);
+                updateAdapter(); // update UI
+                Toast.makeText(arg1.getContext(), "Removed from to-do list",
+                        Toast.LENGTH_SHORT).show();
                 return true;
             }
         });
     }
 
-    // get the correct id matching the String value
-    public void getID(ArrayList<HashMap<String, String>> list, int pos) {
-        HashMap item = list.get(pos);
-        String ID = item.get("id").toString();
-        changingItemID =  Integer.parseInt(ID);
+    public void updateAdapter() {
+        toDoListItems.clear(); // clear to make room for new database
+        toDoListItems.addAll(dBhelper.read()); // add database
+        toDoListAdapter.notifyDataSetChanged();
+    }
+
+    // get the correct id matching the ToDoListItem
+    public void getID(int pos) {
+        ToDoListItem item = toDoListItems.get(pos);
+        changingItemID =  item.id;
     }
 
 
-    /* This method is called whenever a user short-clicks on a to-do list item.
-     * They can edit the item and save it. The value is updated in the database.
+    /* This method is called whenever a user short-clicks on a ToDoListItem.
+     * They can edit the item (the string value) and save it.
+     * The value is then updated in the database.
      */
+    /*
     public void changeItem(String toDoListItem) {
         changingItem = true; // to know the user is changing a value
 
+        // show keyboard
+        InputMethodManager imm = (InputMethodManager) this.getSystemService(Service.INPUT_METHOD_SERVICE);
+        imm.showSoftInput(userInputET, 0);
+
+        // set focus and selection at EditText
         userInputET.setText(toDoListItem);
         userInputET.setSelection(userInputET.getText().length());
         userInputET.requestFocus();
 
+        // give feedback
         Toast toast = Toast.makeText(this,
                 "You are now editing \"" + toDoListItem + "\"", Toast.LENGTH_SHORT);
         toast.setGravity(Gravity.TOP|Gravity.CENTER_HORIZONTAL, 0, 250);
         toast.show();
     }
+    */
 
-    public void deleteItem(int pos) {
-        dBhelper.delete(pos);
-        showToDoList(); // update UI
+    // delete ToDoListItem from the database
+    public void deleteItem(int id) {
+        dBhelper.delete(id);
+        updateAdapter(); // update UI
         Toast.makeText(this, "Removed from to-do list", Toast.LENGTH_SHORT).show();
     }
 
     // when pressing the save button, this method saves the user input to the database
-    public void saveDoable(View view) {
+    public void saveItem(View view) {
         currentUserInput = userInputET.getText().toString(); // turn user input into a string
 
         // check whether there is an input
         if (!(currentUserInput.length() == 0)) {
-            if (changingItem) {
-                // the user is changing/updating an item, not creating it
-                dBhelper.update(changingItemID, currentUserInput);
-                Toast.makeText(this, "Successfully changed item", Toast.LENGTH_SHORT).show();
-            } else {
-                // the user is creating an item, save to database
-                dBhelper.create(currentUserInput);
-                Toast.makeText(this, "Added to to-do list", Toast.LENGTH_SHORT).show();
-            }
-            userInputET.setText("");
-            showToDoList(); // update UI
+            ToDoListItem toDoListItem = new ToDoListItem(currentUserInput);
+            dBhelper.create(toDoListItem);
+            Toast.makeText(this, "Added to to-do list", Toast.LENGTH_SHORT).show();
 
+            userInputET.setText("");
+            InputMethodManager imm = (InputMethodManager) this.getSystemService(Service.INPUT_METHOD_SERVICE);
+            imm.hideSoftInputFromWindow(userInputET.getWindowToken(), 0);
+
+            updateAdapter(); // update UI
         } else {
             // notify to type something before saving
             Toast.makeText(this, "Enter something you need to do", Toast.LENGTH_SHORT).show();
